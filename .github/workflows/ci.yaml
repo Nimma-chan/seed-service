@@ -2,25 +2,27 @@ name: CI
 
 on:
   push:
+    branches: [main]
+    tags: ['v*']
 
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5   #скрипты на стороне гита
-      #- run                         #скрипты на нашей стороне
+      - uses: actions/checkout@v5
       - name: Установить uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
-      - name: установить зависимости
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Установить зависимости
         run: uv sync
-      - name: проверка линтера
+      - name: Проверка линтера
         run: uv run ruff check .
-      - name: запуск тестов
-        run: uv run pythest
+      - name: Запуск тестов
+        run: uv run pytest
         env:
           GREETING: "ci"
           DATABASE_URL: "postgresql://ci:ci@db:5432/ci"
-
 
   publish:
     needs: check
@@ -31,20 +33,22 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v5
-      - name: настроить сборщик для докера
+      - name: Настроить сборщик для Docker
         uses: docker/setup-buildx-action@v4
-      - name: вход в реестр  GHCR
+      - name: Вход в реестр GHCR
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
-          username: ${{ github.sctor }}
+          username: ${{ github.actor }}      # ⬅️ исправлено!
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: сборка и публикация
+      - name: Сборка и публикация
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: ghcr.io/${{ github.repository }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   release:
     needs: check
@@ -65,5 +69,8 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
-
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=maxЫ
